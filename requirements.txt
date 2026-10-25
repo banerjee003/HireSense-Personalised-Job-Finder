@@ -7,3 +7,6 @@ pymysql
 flask_wtf
 bcrypt
 email-validator
+pypdf
+python-docx
+google-genai

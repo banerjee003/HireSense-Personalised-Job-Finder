@@ -10,35 +10,55 @@ db_connection_string = os.getenv('DB_CONNECTION_STRING')
 
 engine = create_engine(
     db_connection_string,
-    pool_pre_ping=True
+    pool_size=10,
+    max_overflow=20,
+    pool_recycle=300,
+    pool_pre_ping=True,
+    pool_timeout=10
 )
 
+import time
 
-def load_jobs_from_db():
+# Lightweight in-memory caches to make page transitions and API responses near-instantaneous
+_jobs_cache = {"data": None, "timestamp": 0}
+_job_single_cache = {}
+
+
+def load_jobs_from_db(force_refresh=False):
+    global _jobs_cache
+    now = time.time()
+    if not force_refresh and _jobs_cache["data"] is not None and (now - _jobs_cache["timestamp"]) < 60:
+        return _jobs_cache["data"]
+
     with engine.connect() as conn:
         result = conn.execute(text("SELECT * FROM jobs"))
-
         jobs = []
-
         for row in result.all():
             jobs.append(dict(row._mapping))
-
-
+        _jobs_cache["data"] = jobs
+        _jobs_cache["timestamp"] = now
         return jobs
 
-def load_one_job_from_db(job_id):
+
+def load_one_job_from_db(job_id, force_refresh=False):
+    global _job_single_cache
+    now = time.time()
+    if not force_refresh and job_id in _job_single_cache:
+        data, ts = _job_single_cache[job_id]
+        if (now - ts) < 60:
+            return data
+
     with engine.connect() as conn:
         result = conn.execute(
-                    text("SELECT * FROM jobs WHERE job_id = :val"),
-                    {"val": job_id}
-                )
+            text("SELECT * FROM jobs WHERE job_id = :val"),
+            {"val": job_id}
+        )
         job = result.first()
-
-
         if job is None:
             return None
-        
-        return dict(job._mapping)
+        res = dict(job._mapping)
+        _job_single_cache[job_id] = (res, now)
+        return res
 
 
 def add_application_to_db(user_id, job_id, data):
@@ -156,9 +176,6 @@ def get_application_info_from_db(user_id):
         data = []
         for row in rows:
             data.append(dict(row._mapping))
-            
-        # Print the result to your terminal so you can debug what is happening
-        print(f"DEBUG - Fetched Data for User {user_id}: {data}")
 
         return data
 
@@ -209,4 +226,17 @@ def search_jobs_from_db(query):
             jobs.append(dict(row._mapping))
 
         return jobs
+
+
+def update_user_password(email, password):
+    with engine.connect() as conn:
+        query = text(
+            "UPDATE users SET password = :password WHERE email = :email"
+        )
+        conn.execute(query, {
+            "email": email,
+            "password": password.decode("utf-8") if isinstance(password, bytes) else password
+        })
+        conn.commit()
+
 

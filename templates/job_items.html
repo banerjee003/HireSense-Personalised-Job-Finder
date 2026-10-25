@@ -1,31 +1,25 @@
-
-<div class="card border-0 shadow-sm rounded-4 job-card mx-auto w-100" style="max-width: 1200px; margin-bottom: 10px;">
-    <div class="card-body p-4 d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3">
+<div class="job-card-v2">
+    <div class="d-flex flex-column flex-md-row justify-content-between align-items-md-center gap-3">
         
         <!-- Left Side: Job Info -->
-        <div>
-            <h4 class="fw-bold text-dark mb-1">{{ job.title }}</h4>
-            <div class="text-secondary fw-semibold mb-3">
+        <div class="text-start">
+            <div class="job-title">{{ job.title }}</div>
+            <div class="job-meta mb-0">
                 {% if job.get('company') %}
-                    <span class="me-3">{{ job.company }}</span>
-                    <span class="me-3">·</span>
+                    <span>{{ job.company }}</span>
                 {% endif %}
-                <span class="me-3"> {{ job.location }}</span>
+                <span>{{ job.location }}</span>
                 {% if 'salary' in job and job.salary %}
-                    <span>Salary {{ job.currency }}{{ job.salary }}</span>
+                    <span>{{ job.currency }}{{ job.salary }}</span>
                 {% endif %}
-            </div>
-            
-            <!-- Visual Tags -->
-            <div class="d-flex flex-wrap gap-2">
-                <span class="badge bg-light text-secondary border px-3 py-2 rounded-pill">Full-Time</span>
-                <span class="badge bg-light text-secondary border px-3 py-2 rounded-pill">Tech</span>
             </div>
         </div>
 
         <!-- Right Side: Apply Button -->
-        <div class="text-md-end">
-            <a href="/jobs/{{job['job_id']}}" class="btn btn-dark px-4 py-2 rounded-pill fw-bold shadow-sm">View & Apply</a>
+        <div class="text-md-end flex-shrink-0">
+            <a href="/jobs/{{job['job_id']}}" class="btn btn-dark px-4 py-2 rounded-pill fw-bold shadow-sm">
+                View & Apply <i class="bi bi-arrow-right ms-1"></i>
+            </a>
         </div>
         
     </div>

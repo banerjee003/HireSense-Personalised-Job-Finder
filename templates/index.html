@@ -1,60 +1,160 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>HireSense</title>
+    <title>HireSense — Find Your Next Tech Role</title>
+    <meta name="description"
+        content="Discover top opportunities in Data Science, Machine Learning, and Software Engineering. AI-powered resume matching.">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-rbsA2VBKQhggwzxH7pPCaAqO46MgnOM80zW1RWuH61DGLwZJEdK2Kadq2F9CUG65" crossorigin="anonymous">
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/css/bootstrap.min.css" rel="stylesheet"
+        integrity="sha384-rbsA2VBKQhggwzxH7pPCaAqO46MgnOM80zW1RWuH61DGLwZJEdK2Kadq2F9CUG65" crossorigin="anonymous">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=13">
 </head>
+
 <body>
     {% include 'navbar.html' %}
 
-    <div class="position-relative overflow-hidden text-center bg-dark text-white shadow" 
-         style="padding: 100px 20px; background: linear-gradient(rgba(5, 31, 32, 0.8), rgba(5, 31, 32, 0.9)), 
-         url('./static/images/banner.avif') center/cover no-repeat;">
-        
-        <div class="col-md-7 col-lg-6 mx-auto my-5">
-            <h1 class="display-4 fw-bold mb-3" style="color: #DAF1DE;">Find Your Next Tech Role</h1>
-            <p class="lead fw-normal text-light mb-5">Discover top opportunities in Data Science, Machine Learning, and Software Engineering.</p>
+    <!-- Hero Section -->
+    <div class="hs-hero text-center text-white">
+        <div class="col-lg-10 col-xl-9 mx-auto px-3">
+            <div class="mb-3">
+                <span class="badge rounded-pill px-3 py-2"
+                    style="background: rgba(218,241,222,0.15); color: #DAF1DE; font-size: 0.82rem; font-weight: 600;">
+                    <i class="bi bi-lightning-charge-fill me-1"></i> AI-Powered Job Matching
+                </span>
+            </div>
             
+            <h1 class="display-5 fw-bold mb-3">Find Your Next Tech Role</h1>
+            <p class="lead fw-normal mb-4 mx-auto" style="min-height: 1.8em; max-width: 720px;">
+                <span id="tagline-prefix"></span><span id="tagline-dynamic" class="fw-semibold text-accent" style="color: #DAF1DE !important;"></span><span class="typewriter-cursor">|</span>
+            </p>
+
             <!-- Floating Search Bar -->
-            <form action="/search" method="GET" class="d-flex justify-content-center shadow-lg rounded bg-white p-2">
-                <input class="form-control form-control-lg border-0 shadow-none" type="search" name="q" placeholder="Job title, keywords, or company..." aria-label="Search" value="{{ search_query or '' }}">
-                <button class="btn btn-dark btn-lg rounded px-4 fw-bold" type="submit">Search</button>
+            <form action="/search" method="GET" class="hs-search-bar d-flex align-items-center">
+                <input class="form-control border-0 shadow-none" type="search" name="q"
+                    placeholder="Job title, keywords, or company..." aria-label="Search"
+                    value="{{ search_query or '' }}">
+                <button class="btn btn-dark fw-bold text-nowrap" type="submit">
+                    <i class="bi bi-search me-1"></i> Search
+                </button>
             </form>
+
+            <div class="hs-stats mt-4">
+                <div class="hs-stat-item">
+                    <span class="hs-stat-number">{{ jobs|length if jobs else '0' }}+</span>
+                    <span class="hs-stat-label">Open Roles</span>
+                </div>
+                <div class="hs-stat-item">
+                    <span class="hs-stat-number">50+</span>
+                    <span class="hs-stat-label">Companies</span>
+                </div>
+                <div class="hs-stat-item">
+                    <span class="hs-stat-number">AI</span>
+                    <span class="hs-stat-label">Resume Match</span>
+                </div>
+            </div>
         </div>
-        
     </div>
 
-    <div id="container">
-        {% if search_query %}
+    <div id="container" style="padding-top: 1rem; padding-bottom: 3rem;">
+        <div class="hs-section-header">
+            {% if search_query %}
             <h2>Results for "{{ search_query }}"</h2>
-        {% else %}
+            {% else %}
             <h2>Open Positions</h2>
-        {% endif %}
+            {% endif %}
+            <p>Showing {{ jobs|length }} position{{ 's' if jobs|length != 1 else '' }}</p>
+        </div>
 
         {% if jobs %}
-        <p class="text-muted text-center mb-4" style="font-size: 0.9rem;">Showing {{ jobs|length }} position{{ 's' if jobs|length != 1 else '' }}</p>
-        <div>
+        <div style="max-width: 1000px; margin: 0 auto; width: 100%;">
             {% for job in jobs %}
-                {% include 'job_items.html' %}
+            {% include 'job_items.html' %}
             {% endfor %}
         </div>
         {% else %}
-            <p class="text-muted text-center mt-4">No jobs found. Try a different search term.</p>
+        <div class="text-center py-5">
+            <i class="bi bi-search text-muted" style="font-size: 3rem;"></i>
+            <p class="text-muted mt-3 mb-0">No jobs found. Try a different search term.</p>
+        </div>
         {% endif %}
-
-        
     </div>
 
     {% include 'footer.html' %}
-    
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-kenU1KFdBIe4zVF0s0G1M5b4hcpxyD9F7jL+jjXkk+Q2h455rYXK/7HAuoJl+0I4" crossorigin="anonymous"></script>
 
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/js/bootstrap.bundle.min.js"
+        integrity="sha384-kenU1KFdBIe4zVF0s0G1M5b4hcpxyD9F7jL+jjXkk+Q2h455rYXK/7HAuoJl+0I4"
+        crossorigin="anonymous"></script>
+
+    <!-- Tagline Typewriter Script -->
+    <script>
+        document.addEventListener("DOMContentLoaded", function () {
+            const prefixEl = document.getElementById("tagline-prefix");
+            const dynamicEl = document.getElementById("tagline-dynamic");
+            if (!prefixEl || !dynamicEl) return;
+
+            const prefixText = "Discover top opportunities in ";
+            const roles = ["Data Science.", "Machine Learning.", "Software Engineering."];
+
+            let prefixChar = 0;
+            let roleIndex = 0;
+            let roleChar = 0;
+            let state = "typingPrefix";
+
+            function tick() {
+                let speed = 30;
+
+                if (state === "typingPrefix") {
+                    if (prefixChar < prefixText.length) {
+                        prefixChar++;
+                        prefixEl.textContent = prefixText.substring(0, prefixChar);
+                        speed = 24;
+                    } else {
+                        // Prefix finished typing, now start typing the first role
+                        state = "typingRole";
+                        roleChar = 0;
+                        speed = 50;
+                    }
+                    setTimeout(tick, speed);
+                } else if (state === "typingRole") {
+                    const currentWord = roles[roleIndex];
+                    if (roleChar < currentWord.length) {
+                        roleChar++;
+                        dynamicEl.textContent = currentWord.substring(0, roleChar);
+                        speed = (roleChar === currentWord.length) ? 90 : 40;
+                        setTimeout(tick, speed);
+                    } else {
+                        // Full role with dot typed -> pause for reading before deleting
+                        setTimeout(function () {
+                            state = "deletingRole";
+                            tick();
+                        }, 1800);
+                    }
+                } else if (state === "deletingRole") {
+                    const currentWord = roles[roleIndex];
+                    if (roleChar > 0) {
+                        roleChar--;
+                        dynamicEl.textContent = currentWord.substring(0, roleChar);
+                        speed = 38;
+                        setTimeout(tick, speed);
+                    } else {
+                        // Role deleted completely -> switch to next role in the loop
+                        roleIndex = (roleIndex + 1) % roles.length;
+                        state = "typingRole";
+                        setTimeout(tick, 200);
+                    }
+                }
+            }
+
+            // Start typing prefix from blank after 150ms of landing on home page
+            setTimeout(tick, 150);
+        });
+    </script>
 </body>
+
 </html>

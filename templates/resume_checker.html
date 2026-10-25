@@ -1,0 +1,757 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ATS Resume Checker & Matcher | HireSense</title>
+    <!-- Preconnect to CDNs for instant loading -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="preconnect" href="https://cdn.jsdelivr.net">
+    <link rel="preconnect" href="https://cdnjs.cloudflare.com">
+    <!-- Google Fonts with font-display: swap -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- Bootstrap 5 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-rbsA2VBKQhggwzxH7pPCaAqO46MgnOM80zW1RWuH61DGLwZJEdK2Kadq2F9CUG65" crossorigin="anonymous">
+    <!-- Bootstrap Icons -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+    <!-- Global Style from static folder -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v=4">
+    <style>
+        .dropzone-overlay {
+            background: #ffffff !important;
+            text-align: center;
+        }
+    </style>
+</head>
+<body class="bg-light">
+
+    {% include 'navbar.html' %}
+
+    <main class="container py-4" style="min-height: 85vh;">
+        
+        <!-- Flash messages -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ category if category != 'message' else 'info' }} alert-dismissible fade show rounded-3 shadow-sm mb-4 d-flex align-items-center" role="alert">
+                        <i class="bi bi-info-circle-fill me-2 fs-5 flex-shrink-0"></i>
+                        <div class="flex-grow-1">{{ message }}</div>
+                        <button type="button" class="btn-close ms-2 position-static flex-shrink-0" data-bs-dismiss="alert" aria-label="Close"></button>
+                    </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        <!-- Header -->
+        <header class="hero-section mb-4">
+            <div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center gap-4">
+                <div class="text-start">
+                    <div class="hero-badge">
+                        <i class="bi bi-shield-check text-success fs-6"></i>
+                        <span>AI-Powered Multi-Factor ATS Scoring</span>
+                    </div>
+                    <h1 class="display-6 fw-bold text-white mb-2">Smart Resume Checker & Matcher</h1>
+                    <p class="lead mb-0 text-white-50" style="font-size: 1.05rem;">
+                        Side-by-side document analysis and job description matching with deep ATS keyword gap detection.
+                    </p>
+                </div>
+                <div class="flex-shrink-0 align-self-start align-self-md-center">
+                    <button type="button" class="hero-action-btn" id="fillSampleBtn">
+                        <i class="bi bi-lightning-charge-fill"></i> Load Sample Data
+                    </button>
+                </div>
+            </div>
+        </header>
+
+        <!-- Symmetrical Split Workspace Form -->
+        <form id="resumeForm" action="{{ url_for('resume_checker') }}" method="POST" enctype="multipart/form-data">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="file" name="resume_file" id="resumeFileInput" class="d-none" accept=".pdf,.docx,.txt">
+
+            <div class="row g-4 mb-4">
+                <!-- LEFT COLUMN: Custom Designed Document Viewer -->
+                <div class="col-lg-6">
+                    <div class="checker-panel-card">
+                        
+                        <!-- Panel Header -->
+                        <div class="checker-panel-header">
+                            <div class="d-flex align-items-center gap-2">
+                                <i class="bi bi-file-earmark-person text-accent fs-5"></i>
+                                <span class="fw-bold" id="panelDocTitle">
+                                    {{ resume_file_name or '1. Candidate Résumé' }}
+                                </span>
+                            </div>
+                            
+                            <div class="d-flex align-items-center gap-2">
+                                <button type="button" class="btn btn-sm btn-accent rounded-pill px-3 py-1" onclick="document.getElementById('resumeFileInput').click();">
+                                    <i class="bi bi-upload me-1"></i> Upload File
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Panel Body -->
+                        <div class="checker-panel-body" id="docViewerWrapper">
+                            
+                            <!-- Dropzone Overlay (Visible when no resume content exists) -->
+                            <div class="dropzone-overlay {% if resume_text or resume_file_b64 %}d-none{% endif %}" id="dropzoneOverlay" onclick="document.getElementById('resumeFileInput').click();">
+                                <i class="bi bi-cloud-arrow-up text-secondary" style="font-size: 3rem;"></i>
+                                <h6 class="fw-bold mt-2 mb-1 text-dark">Drag & Drop Resume (PDF, DOCX, TXT)</h6>
+                                <p class="text-muted small mb-3">or click anywhere to browse files</p>
+                                <span class="btn btn-dark btn-sm rounded-pill px-4">Select Document</span>
+                            </div>
+
+                            <!-- Custom Document Canvas Workspace -->
+                            <div class="custom-doc-workspace" id="docWorkspace">
+                                <!-- PDF Canvas Container -->
+                                <div id="pdfCanvasContainer" class="w-100 d-flex flex-column align-items-center"></div>
+
+                                <!-- Formatted Document Sheet (For DOCX / TXT / Sample Data) -->
+                                <div class="doc-sheet-canvas {% if not resume_text or resume_file_type == 'pdf' %}d-none{% endif %}" id="docSheetText">{{ resume_text or '' }}</div>
+                            </div>
+
+                            <!-- Raw Textarea Editor (Hidden by default, toggled via 'Edit Text') -->
+                            <textarea class="custom-editor-textarea d-none" name="resume_text" id="resumeTextInput" placeholder="Paste your raw résumé text here...">{{ resume_text or '' }}</textarea>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- RIGHT COLUMN: Target Job Description Panel -->
+                <div class="col-lg-6">
+                    <div class="checker-panel-card">
+                        
+                        <!-- Panel Header -->
+                        <div class="checker-panel-header">
+                            <div class="d-flex align-items-center gap-2">
+                                <i class="bi bi-briefcase text-accent fs-5"></i>
+                                <span class="fw-bold">2. Target Job Description</span>
+                            </div>
+                            
+                            <div class="d-flex align-items-center gap-2">
+                                <span class="badge bg-secondary text-white rounded-pill px-2 py-1 small" id="jdWordCountBadge">
+                                    0 words
+                                </span>
+                                <button type="button" class="btn btn-sm btn-outline-light rounded-pill px-2 py-1" id="clearJdBtn" title="Clear Job Description">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Panel Body -->
+                        <div class="checker-panel-body">
+                            <textarea class="custom-editor-textarea" name="job_description" id="jobDescriptionInput" placeholder="Paste the target job description, responsibilities, and required qualifications here..." required>{{ job_description or '' }}</textarea>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Action Toolbar Bar -->
+            <div class="card card-custom p-3 mb-5">
+                <div class="d-flex flex-column flex-sm-row justify-content-between align-items-center gap-3">
+                    <div class="text-muted small">
+                        <i class="bi bi-shield-check text-success me-1"></i> Client-side native rendering. Fast multi-dimensional ATS evaluation.
+                    </div>
+                    <div class="d-flex gap-2">
+                        <button type="reset" class="btn btn-outline-secondary px-3" id="resetAllBtn">Reset All</button>
+                        <button type="submit" class="btn btn-dark px-4 fw-semibold" id="analyzeBtn">
+                            <i class="bi bi-search me-1"></i> Run ATS Evaluation
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </form>
+
+        <!-- RESULTS SECTION -->
+        <div id="resultsContainer" class="{% if not result %}d-none{% endif %}" style="scroll-margin-top: 85px;">
+            
+            <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-4">
+                <div class="d-flex align-items-center gap-2 flex-wrap">
+                    <h2 class="h3 fw-bold text-start mb-0 text-dark">
+                        <i class="bi bi-clipboard2-pulse me-2 text-success"></i>ATS Evaluation Report
+                    </h2>
+                    {% if result and result.ai_model %}
+                    <span class="badge bg-dark text-light border border-secondary rounded-pill px-3 py-1 small">
+                        <i class="bi bi-stars text-warning me-1"></i> AI-Powered Multi-Dimensional Analysis
+                    </span>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Top Row: Score & Category Breakdown -->
+            <div class="row g-4 mb-4">
+                <!-- Overall ATS Score Card -->
+                <div class="col-lg-4">
+                    <div class="card card-custom h-100 text-center p-4">
+                        <h6 class="text-uppercase text-muted fw-bold small mb-3">Overall ATS Compatibility</h6>
+                        
+                        <div class="score-circle-container my-2">
+                            <svg class="score-circle-svg" viewBox="0 0 160 160">
+                                <circle class="score-circle-bg" cx="80" cy="80" r="70"></circle>
+                                <circle id="scoreProgressCircle" class="score-circle-progress" cx="80" cy="80" r="70" stroke="#2e7d32"></circle>
+                            </svg>
+                            <div class="score-number" id="atsScoreValue">
+                                {{ result.ats_score if result and result.ats_score is defined else '0' }}%
+                            </div>
+                        </div>
+
+                        <div class="mt-3">
+                            {% set score = result.ats_score if result and result.ats_score is defined else 0 %}
+                            {% if score >= 80 %}
+                            <span class="badge bg-success text-white px-3 py-2 rounded-pill fw-semibold">{{ result.verdict or 'Strong Match' }}</span>
+                            {% elif score >= 65 %}
+                            <span class="badge bg-success text-white px-3 py-2 rounded-pill fw-semibold">{{ result.verdict or 'Competitive Match' }}</span>
+                            {% elif score >= 50 %}
+                            <span class="badge bg-warning text-dark px-3 py-2 rounded-pill fw-semibold">{{ result.verdict or 'Moderate Match' }}</span>
+                            {% else %}
+                            <span class="badge bg-danger text-white px-3 py-2 rounded-pill fw-semibold">{{ result.verdict or 'Needs Improvement' }}</span>
+                            {% endif %}
+                        </div>
+
+                        <p class="text-muted small mt-2 mb-0">
+                            {{ result.summary if result and result.summary else 'Your resume has been evaluated against core technical keywords, action verbs, and ATS formatting standards.' }}
+                        </p>
+                    </div>
+                </div>
+
+                <!-- 5 Category Progress Bars -->
+                <div class="col-lg-8">
+                    <div class="card card-custom h-100 p-4">
+                        <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+                            <h5 class="fw-bold mb-0 text-dark">ATS Dimension Scores</h5>
+                            {% if result and result.experience_summary and result.experience_summary.required_years %}
+                            <span class="badge bg-light text-dark border rounded-pill px-3 py-1 small">
+                                <i class="bi bi-briefcase text-success me-1"></i> Req: {{ result.experience_summary.required_years }} | Found: {{ result.experience_summary.detected_years }}
+                            </span>
+                            {% endif %}
+                        </div>
+                        
+                        {% set cat = result.category_scores if result and result.category_scores is defined else {} %}
+                        
+                        <!-- 1. Required Experience & Seniority Match (Primary Priority) -->
+                        <div class="mb-3">
+                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                <span class="fw-semibold small text-dark">
+                                    <i class="bi bi-briefcase-fill me-2 text-success"></i>Required Experience & Seniority
+                                    <span class="badge bg-success text-white rounded-pill ms-1" style="font-size: 0.68rem; padding: 0.2rem 0.55rem;">High Priority</span>
+                                </span>
+                                <span class="fw-bold small text-success">{{ cat.get('experience_match', 85) }}%</span>
+                            </div>
+                            <div class="category-progress">
+                                <div class="category-progress-bar bg-success" style="width: {{ cat.get('experience_match', 85) }}%;"></div>
+                            </div>
+                        </div>
+
+                        <!-- 2. Technical Skills Match -->
+                        <div class="mb-3">
+                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                <span class="fw-semibold small text-dark"><i class="bi bi-code-slash me-2 text-primary"></i>Technical Skills Match</span>
+                                <span class="fw-bold small">{{ cat.get('skills_match', 75) }}%</span>
+                            </div>
+                            <div class="category-progress">
+                                <div class="category-progress-bar bg-primary" style="width: {{ cat.get('skills_match', 75) }}%;"></div>
+                            </div>
+                        </div>
+
+                        <!-- 3. Soft Skills & Methodologies -->
+                        <div class="mb-3">
+                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                <span class="fw-semibold small text-dark"><i class="bi bi-people me-2 text-info"></i>Soft Skills & Methodologies</span>
+                                <span class="fw-bold small">{{ cat.get('soft_skills', 70) }}%</span>
+                            </div>
+                            <div class="category-progress">
+                                <div class="category-progress-bar bg-info" style="width: {{ cat.get('soft_skills', 70) }}%;"></div>
+                            </div>
+                        </div>
+
+                        <!-- 4. Impact Verbs & Metrics -->
+                        <div class="mb-3">
+                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                <span class="fw-semibold small text-dark"><i class="bi bi-lightning-charge me-2 text-warning"></i>Impact Verbs & Metrics</span>
+                                <span class="fw-bold small">{{ cat.get('impact_verbs', 65) }}%</span>
+                            </div>
+                            <div class="category-progress">
+                                <div class="category-progress-bar bg-warning" style="width: {{ cat.get('impact_verbs', 65) }}%;"></div>
+                            </div>
+                        </div>
+
+                        <!-- 5. ATS Formatting & Structure -->
+                        <div class="mb-1">
+                            <div class="d-flex justify-content-between align-items-center mb-1">
+                                <span class="fw-semibold small text-dark"><i class="bi bi-layout-text-sidebar me-2 text-secondary"></i>ATS Formatting & Structure</span>
+                                <span class="fw-bold small">{{ cat.get('formatting', 90) }}%</span>
+                            </div>
+                            <div class="category-progress">
+                                <div class="category-progress-bar bg-secondary" style="width: {{ cat.get('formatting', 90) }}%;"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Skills Breakdown: Technical + Soft Skills -->
+            <div class="row g-4 mb-4">
+                <!-- Matched Technical Skills -->
+                <div class="col-lg-6">
+                    <div class="card card-custom h-100 p-4">
+                        <div class="d-flex align-items-center justify-content-between mb-3">
+                            <h5 class="fw-bold text-success mb-0">
+                                <i class="bi bi-check-circle-fill me-2"></i>Matched Core Skills
+                            </h5>
+                            <span class="badge bg-success text-white rounded-pill">
+                                {{ result.matched_keywords|length ~ ' Found' if result and result.matched_keywords is defined else '0 Found' }}
+                            </span>
+                        </div>
+                        <p class="text-muted small mb-3">Required technologies and competencies detected in your résumé:</p>
+                        
+                        <div class="d-flex flex-wrap">
+                            {% if result and result.matched_keywords %}
+                                {% for kw in result.matched_keywords %}
+                                    <span class="skill-badge skill-badge-matched"><i class="bi bi-check-lg"></i> {{ kw }}</span>
+                                {% endfor %}
+                            {% else %}
+                                <p class="text-muted small mb-0">No technical skills detected yet.</p>
+                            {% endif %}
+                        </div>
+
+                        {% if result and result.soft_skills_matched %}
+                        <hr class="my-3 text-muted">
+                        <h6 class="fw-bold text-dark small mb-2">Matched Soft Skills & Tools:</h6>
+                        <div class="d-flex flex-wrap">
+                            {% for s in result.soft_skills_matched %}
+                                <span class="badge bg-light text-dark border me-1 mb-1 px-2 py-1"><i class="bi bi-check text-success"></i> {{ s }}</span>
+                            {% endfor %}
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <!-- Missing Skills -->
+                <div class="col-lg-6">
+                    <div class="card card-custom h-100 p-4">
+                        <div class="d-flex align-items-center justify-content-between mb-3">
+                            <h5 class="fw-bold text-danger mb-0">
+                                <i class="bi bi-exclamation-triangle-fill me-2"></i>Missing Target Qualifications
+                            </h5>
+                            <span class="badge bg-danger text-white rounded-pill">
+                                {{ result.unmatched_keywords|length ~ ' Missing' if result and result.unmatched_keywords is defined else '0 Missing' }}
+                            </span>
+                        </div>
+                        <p class="text-muted small mb-3">Skills prioritized in the job description that were absent or weak:</p>
+                        
+                        <div class="d-flex flex-wrap">
+                            {% if result and result.unmatched_keywords %}
+                                {% for kw in result.unmatched_keywords %}
+                                    <span class="skill-badge skill-badge-missing"><i class="bi bi-plus-circle"></i> {{ kw }}</span>
+                                {% endfor %}
+                            {% else %}
+                                <p class="text-success small mb-0"><i class="bi bi-check-all"></i> All core job description skills matched!</p>
+                            {% endif %}
+                        </div>
+
+                        {% if result and result.soft_skills_missing %}
+                        <hr class="my-3 text-muted">
+                        <h6 class="fw-bold text-dark small mb-2">Missing Methodologies:</h6>
+                        <div class="d-flex flex-wrap">
+                            {% for s in result.soft_skills_missing %}
+                                <span class="badge bg-light text-muted border me-1 mb-1 px-2 py-1"><i class="bi bi-dash"></i> {{ s }}</span>
+                            {% endfor %}
+                        </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            <!-- Formatting Health & Critical Actionable Fixes -->
+            <div class="row g-4 mb-4">
+                <!-- ATS Formatting Health Checklist -->
+                <div class="col-lg-6">
+                    <div class="card card-custom h-100 p-4">
+                        <h5 class="fw-bold text-dark mb-3">
+                            <i class="bi bi-shield-check me-2 text-primary"></i>ATS Structural Health
+                        </h5>
+                        
+                        {% if result and result.formatting_checks %}
+                            {% for check in result.formatting_checks %}
+                                <div class="check-item">
+                                    {% if check.status == 'pass' %}
+                                    <i class="bi bi-check-circle-fill check-icon-success"></i>
+                                    {% else %}
+                                    <i class="bi bi-exclamation-triangle-fill check-icon-warning"></i>
+                                    {% endif %}
+                                    <div>
+                                        <strong class="text-dark d-block">{{ check.name }}</strong>
+                                        <span class="text-muted small">{{ check.detail }}</span>
+                                    </div>
+                                </div>
+                            {% endfor %}
+                        {% else %}
+                            <p class="text-muted small mb-0">Structural health report will display after running the check.</p>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <!-- Critical Actionable Fixes -->
+                <div class="col-lg-6">
+                    <div class="card card-custom h-100 p-4">
+                        <h5 class="fw-bold text-dark mb-3">
+                            <i class="bi bi-lightbulb me-2 text-warning"></i>Top Prioritized Fixes
+                        </h5>
+                        
+                        {% if result and result.critical_fixes %}
+                            {% for fix in result.critical_fixes %}
+                                <div class="check-item">
+                                    <i class="bi bi-arrow-right-circle-fill text-warning check-icon-warning"></i>
+                                    <div>
+                                        <p class="mb-0 text-dark small">{{ fix }}</p>
+                                    </div>
+                                </div>
+                            {% endfor %}
+                        {% else %}
+                            <div class="check-item">
+                                <i class="bi bi-arrow-right-circle-fill check-icon-warning"></i>
+                                <div>
+                                    <p class="mb-0 text-dark small">Incorporate missing core technologies from the job description into your skills summary.</p>
+                                </div>
+                            </div>
+                            <div class="check-item">
+                                <i class="bi bi-arrow-right-circle-fill check-icon-warning"></i>
+                                <div>
+                                    <p class="mb-0 text-dark small">Quantify work experience achievements with measurable metrics (%, numbers, scale).</p>
+                                </div>
+                            </div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tailored Bullet Point Rewrites -->
+            {% if result and result.bullet_rewrites %}
+            <div class="card card-custom p-4 mb-4">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h5 class="fw-bold text-dark mb-0">
+                        <i class="bi bi-magic me-2 text-primary"></i>Tailored Bullet Point Optimizations
+                    </h5>
+                    <span class="badge bg-dark text-white">ATS Optimized</span>
+                </div>
+                <p class="text-muted small mb-4">Compare generic statements with metric-driven, keyword-rich bullet points tailored for this role:</p>
+
+                <div class="row g-3">
+                    {% for rewrite in result.bullet_rewrites %}
+                    <div class="col-lg-6">
+                        <div class="bullet-card h-100 d-flex flex-column justify-content-between">
+                            <div>
+                                <p class="small text-muted fw-bold mb-1"><i class="bi bi-dash-circle text-secondary me-1"></i> Original / Generic</p>
+                                <div class="bullet-before mb-3">
+                                    "{{ rewrite.original }}"
+                                </div>
+
+                                <p class="small text-success fw-bold mb-1"><i class="bi bi-check-circle text-success me-1"></i> Optimized for ATS & Recruiter</p>
+                                <div class="bullet-after mb-3">
+                                    "{{ rewrite.optimized }}"
+                                </div>
+                            </div>
+
+                            <div class="text-end pt-2 border-top">
+                                <button type="button" class="btn btn-sm btn-outline-dark rounded-pill px-3" onclick="navigator.clipboard.writeText('{{ rewrite.optimized }}'); alert('Optimized bullet copied to clipboard!');">
+                                    <i class="bi bi-clipboard me-1"></i> Copy Bullet
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+
+        </div>
+
+    </main>
+
+    {% include 'footer.html' %}
+
+    <!-- Bootstrap Bundle with Popper -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/js/bootstrap.bundle.min.js" integrity="sha384-kenU1KFdBIe4zVF0s0G1M5b4hcpxyD9F7jL+jjXkk+Q2h455rYXK/7HAuoJl+0I4" crossorigin="anonymous"></script>
+    <!-- PDF.js for Native Canvas Document Rendering (Non-blocking bottom load) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+
+    <script>
+        // Set PDF.js worker
+        if (window.pdfjsLib) {
+            pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+        }
+
+        document.addEventListener('DOMContentLoaded', function () {
+            const dropzoneOverlay = document.getElementById('dropzoneOverlay');
+            const fileInput = document.getElementById('resumeFileInput');
+            const panelDocTitle = document.getElementById('panelDocTitle');
+            const docWorkspace = document.getElementById('docWorkspace');
+            const pdfCanvasContainer = document.getElementById('pdfCanvasContainer');
+            const docSheetText = document.getElementById('docSheetText');
+            const resumeTextInput = document.getElementById('resumeTextInput');
+            const jdInput = document.getElementById('jobDescriptionInput');
+            const jdWordCountBadge = document.getElementById('jdWordCountBadge');
+            const clearJdBtn = document.getElementById('clearJdBtn');
+
+            // 1. Initial State from Server
+            const serverPdfB64 = "{{ resume_file_b64 or '' }}";
+            const serverDocName = "{{ resume_file_name or '' }}";
+            const serverText = `{{ resume_text or '' }}`;
+
+            if (serverPdfB64) {
+                renderPdfFromBase64(serverPdfB64);
+                if (panelDocTitle) panelDocTitle.textContent = serverDocName || "Uploaded Resume.pdf";
+                if (dropzoneOverlay) dropzoneOverlay.classList.add('d-none');
+            } else if (serverText.trim()) {
+                if (docSheetText) docSheetText.textContent = serverText;
+                if (dropzoneOverlay) dropzoneOverlay.classList.add('d-none');
+            }
+
+            // 2. Drag & Drop File Handling
+            if (dropzoneOverlay && fileInput) {
+                ['dragenter', 'dragover'].forEach(name => {
+                    dropzoneOverlay.addEventListener(name, (e) => {
+                        e.preventDefault();
+                        dropzoneOverlay.classList.add('dragover');
+                    });
+                });
+
+                ['dragleave', 'drop'].forEach(name => {
+                    dropzoneOverlay.addEventListener(name, (e) => {
+                        e.preventDefault();
+                        dropzoneOverlay.classList.remove('dragover');
+                    });
+                });
+
+                dropzoneOverlay.addEventListener('drop', (e) => {
+                    e.preventDefault();
+                    const files = e.dataTransfer.files;
+                    if (files.length > 0) {
+                        fileInput.files = files;
+                        processFileSelection(files[0]);
+                    }
+                });
+
+                fileInput.addEventListener('change', (e) => {
+                    if (fileInput.files.length > 0) {
+                        processFileSelection(fileInput.files[0]);
+                    }
+                });
+            }
+
+            function processFileSelection(file) {
+                if (!file) return;
+
+                if (panelDocTitle) {
+                    panelDocTitle.textContent = file.name + " (" + (file.size / 1024).toFixed(1) + " KB)";
+                }
+                if (dropzoneOverlay) dropzoneOverlay.classList.add('d-none');
+
+                if (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')) {
+                    const reader = new FileReader();
+                    reader.onload = function (e) {
+                        const arrayBuffer = e.target.result;
+                        renderPdfFromArrayBuffer(arrayBuffer);
+                    };
+                    reader.readAsArrayBuffer(file);
+                } else {
+                    // Non-PDF (Word or Text)
+                    const textReader = new FileReader();
+                    textReader.onload = function (e) {
+                        const content = e.target.result;
+                        if (pdfCanvasContainer) pdfCanvasContainer.innerHTML = '';
+                        if (docSheetText) {
+                            docSheetText.textContent = content;
+                            docSheetText.classList.remove('d-none');
+                        }
+                        if (resumeTextInput) resumeTextInput.value = content;
+                    };
+                    textReader.readAsText(file);
+                }
+            }
+
+            // PDF.js Canvas Page Rendering
+            function renderPdfFromArrayBuffer(arrayBuffer) {
+                if (!window.pdfjsLib) return;
+
+                if (docSheetText) docSheetText.classList.add('d-none');
+                if (pdfCanvasContainer) pdfCanvasContainer.innerHTML = '<div class="spinner-border text-dark my-4" role="status"></div>';
+
+                pdfjsLib.getDocument({ data: arrayBuffer }).promise.then(function (pdf) {
+                    pdfCanvasContainer.innerHTML = '';
+                    for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+                        pdf.getPage(pageNum).then(function (page) {
+                            const scale = 1.3;
+                            const viewport = page.getViewport({ scale: scale });
+
+                            const canvas = document.createElement('canvas');
+                            canvas.className = 'pdf-canvas-item';
+                            const context = canvas.getContext('2d');
+                            canvas.height = viewport.height;
+                            canvas.width = viewport.width;
+
+                            const renderContext = {
+                                canvasContext: context,
+                                viewport: viewport
+                            };
+                            page.render(renderContext);
+                            pdfCanvasContainer.appendChild(canvas);
+                        });
+                    }
+                }).catch(function (err) {
+                    console.error("PDF.js render error:", err);
+                    if (docSheetText) docSheetText.classList.remove('d-none');
+                });
+            }
+
+            function renderPdfFromBase64(base64Data) {
+                const binaryString = atob(base64Data);
+                const bytes = new Uint8Array(binaryString.length);
+                for (let i = 0; i < binaryString.length; i++) {
+                    bytes[i] = binaryString.charCodeAt(i);
+                }
+                renderPdfFromArrayBuffer(bytes.buffer);
+            }
+
+
+
+            // 4. Symmetrical Job Description Word Counter
+            function updateJdWordCount() {
+                if (!jdInput || !jdWordCountBadge) return;
+                const text = jdInput.value.trim();
+                const count = text ? text.split(/\s+/).filter(Boolean).length : 0;
+                jdWordCountBadge.textContent = count + " words";
+            }
+
+            if (jdInput) {
+                jdInput.addEventListener('input', updateJdWordCount);
+                updateJdWordCount();
+            }
+
+            if (clearJdBtn && jdInput) {
+                clearJdBtn.addEventListener('click', function () {
+                    jdInput.value = '';
+                    updateJdWordCount();
+                    jdInput.focus();
+                });
+            }
+
+            // 5. Score Circle Progress Animation
+            function setScoreCircle(score) {
+                const circle = document.getElementById('scoreProgressCircle');
+                if (!circle) return;
+                const circumference = 2 * Math.PI * 70; // r=70
+                const offset = circumference - (score / 100) * circumference;
+                circle.style.strokeDasharray = circumference;
+                circle.style.strokeDashoffset = offset;
+
+                if (score >= 75) {
+                    circle.setAttribute('stroke', '#2e7d32');
+                } else if (score >= 55) {
+                    circle.setAttribute('stroke', '#f57c00');
+                } else {
+                    circle.setAttribute('stroke', '#c62828');
+                }
+            }
+
+            const scoreElem = document.getElementById('atsScoreValue');
+            if (scoreElem) {
+                const scoreVal = parseInt(scoreElem.textContent) || 0;
+                setTimeout(() => setScoreCircle(scoreVal), 200);
+            }
+
+            // 6. "Load Sample Data" Button
+            const fillSampleBtn = document.getElementById('fillSampleBtn');
+            if (fillSampleBtn) {
+                fillSampleBtn.addEventListener('click', function (e) {
+                    e.preventDefault();
+
+                    const sampleResume = 
+`ALEX MORGAN
+alex.morgan@email.com | (555) 019-2834 | linkedin.com/in/alexmorgan | github.com/alexmorgan
+
+PROFESSIONAL SUMMARY
+Backend Software Engineer with 3+ years of experience designing and deploying Python and Flask web applications, architecting RESTful APIs, and optimizing MySQL database schemas.
+
+TECHNICAL SKILLS
+- Languages: Python, JavaScript, HTML5, CSS3, SQL
+- Frameworks & Libraries: Flask, SQLAlchemy, PyMySQL, Jinja2, Bootstrap 5
+- Tools & Cloud: Git, GitHub, Postman, Linux, REST APIs, Relational Database Design
+
+WORK EXPERIENCE
+Full Stack Python Developer | TechCraft Solutions (2023 - Present)
+- Architected and deployed 12+ RESTful API endpoints using Flask and SQLAlchemy with MySQL.
+- Implemented user authentication with bcrypt password hashing and Flask-WTF CSRF validation.
+- Optimized relational database queries, reducing query response times by 28% for 5,000+ daily users.
+- Collaborated across cross-functional engineering teams using Git version control and Agile sprints.
+
+EDUCATION
+Bachelor of Science in Computer Science | State University (2019 - 2023)`;
+
+                    const sampleJD = 
+`We are seeking an experienced Backend Python Developer to join our growing engineering team.
+
+Key Responsibilities:
+- Design, build, and maintain scalable backend web services and REST APIs using Python and Flask
+- Optimize relational database schemas, complex SQL queries, and ORM models in MySQL or PostgreSQL
+- Containerize services using Docker and configure automated CI/CD deployment pipelines on AWS or GCP
+- Write automated unit tests (pytest) to maintain code quality and test coverage
+- Collaborate in an Agile environment with code reviews, Git version control, and system design discussions
+
+Qualifications:
+- 3+ years of backend development experience with Python (Flask or Django)
+- Strong knowledge of SQL, relational database design, and indexing
+- Hands-on experience with Docker, cloud infrastructure (AWS/GCP), and CI/CD tools
+- Excellent problem solving, communication, and cross-functional collaboration skills`;
+
+                    // Left Side: Render formatted document sheet
+                    if (dropzoneOverlay) dropzoneOverlay.classList.add('d-none');
+                    if (pdfCanvasContainer) pdfCanvasContainer.innerHTML = '';
+                    if (docSheetText) {
+                        docSheetText.textContent = sampleResume;
+                        docSheetText.classList.remove('d-none');
+                    }
+                    if (resumeTextInput) resumeTextInput.value = sampleResume;
+                    if (panelDocTitle) panelDocTitle.textContent = "Alex_Morgan_Resume.pdf (Sample)";
+
+                    // Right Side: Populate Job Description & update word counter
+                    if (jdInput) {
+                        jdInput.value = sampleJD;
+                        updateJdWordCount();
+                    }
+
+
+
+                    // Smooth scroll to form
+                    const formElem = document.getElementById('resumeForm');
+                    if (formElem) {
+                        formElem.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    }
+                });
+            }
+
+            // 7. Instant Loading State on Submit
+            const resumeForm = document.getElementById('resumeForm');
+            const analyzeBtn = document.getElementById('analyzeBtn');
+            if (resumeForm && analyzeBtn) {
+                resumeForm.addEventListener('submit', function () {
+                    if (resumeForm.checkValidity()) {
+                        analyzeBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span> Evaluating ATS Match...';
+                        analyzeBtn.classList.add('disabled');
+                        analyzeBtn.style.pointerEvents = 'none';
+                    }
+                });
+            }
+
+            // 8. Auto-scroll to results section when evaluated
+            {% if result %}
+            const resultsSection = document.getElementById('resultsContainer');
+            if (resultsSection) {
+                setTimeout(function () {
+                    resultsSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }, 150);
+            }
+            {% endif %}
+        });
+    </script>
+</body>
+</html>
